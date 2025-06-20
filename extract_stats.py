@@ -250,6 +250,71 @@ def analyze_statistics(stats: Dict[str, List[Any]]) -> Dict[str, Any]:
         analysis["effect_sizes"]["by_section"][es.section] += 1
     
     return analysis
+# Configure logging
+log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+log_file = os.path.join(log_dir, f'extract_stats_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+def validate_pdf_path(file_path):
+    """Validate that the provided path exists and is a PDF file."""
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    if not file_path.lower().endswith('.pdf'):
+        raise ValueError(f"File must be a PDF: {file_path}")
+    return file_path
+
+def extract_text_from_pdf(pdf_path):
+    """
+    Extract text from a PDF file using PyMuPDF.
+    
+    Args:
+        pdf_path (str): Path to the PDF file
+        
+    Returns:
+        tuple: (success: bool, content: str or error message)
+    """
+    try:
+        # Open the PDF file
+        doc = fitz.open(pdf_path)
+        
+        # Initialize text content
+        text_content = []
+        
+        # Extract text from each page
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            text_content.append(page.get_text())
+            logging.debug(f"Processed page {page_num + 1}")
+        
+        # Close the document
+        doc.close()
+        
+        # Join all text content
+        full_text = "\n\n".join(text_content)
+        
+        if not full_text.strip():
+            return False, "PDF appears to be empty or contains no extractable text"
+        
+        return True, full_text
+        
+    except fitz.FileDataError:
+        return False, "Invalid or corrupted PDF file"
+    except PermissionError:
+        return False, "Permission denied when accessing the file"
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logging.error(f"Unexpected error during PDF processing:\n{error_details}")
+        return False, f"Error processing PDF: {str(e)}"
 
 def main():
     parser = argparse.ArgumentParser(description='Extract statistical measures from PDF documents.')
