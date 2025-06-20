@@ -273,6 +273,59 @@ def validate_pdf_path(file_path):
         raise ValueError(f"File must be a PDF: {file_path}")
     return file_path
 
+
+def clean_text(text):
+    """
+    Clean and normalize extracted text.
+    
+    Args:
+        text (str): Raw text extracted from PDF
+        
+    Returns:
+        str: Cleaned and normalized text
+    """
+    if not text:
+        return text
+
+    # Normalize unicode characters
+    text = unicodedata.normalize('NFKC', text)
+    
+    # Replace various types of hyphens and dashes with standard hyphen
+    text = re.sub(r'[‐‑‒–—―]', '-', text)
+    
+    # Remove control characters while preserving newlines
+    text = ''.join(char if char == '\n' else '' if unicodedata.category(char).startswith('C') else char for char in text)
+    
+    # Replace multiple spaces with single space
+    text = re.sub(r' +', ' ', text)
+    
+    # Fix common OCR artifacts
+    text = re.sub(r'[¶§]', '', text)  # Remove paragraph and section marks
+    text = re.sub(r'[•●○·]', '-', text)  # Convert bullets to hyphens
+    
+    # Remove repeated newlines while preserving paragraph structure
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Fix spacing around punctuation
+    text = re.sub(r'\s+([.,!?;:])', r'\1', text)
+    text = re.sub(r'(\d)\s+([.,])\s+(\d)', r'\1\2\3', text)  # Fix spacing in numbers
+    
+    # Remove spaces at the beginning and end of lines
+    lines = text.split('\n')
+    lines = [line.strip() for line in lines]
+    text = '\n'.join(lines)
+    
+    # Remove zero-width spaces and other invisible separators
+    text = re.sub(r'[\u200B\u200C\u200D\uFEFF]', '', text)
+    
+    # Fix common encoding artifacts
+    text = text.replace('â€™', "'")  # Smart quotes
+    text = text.replace('â€"', "–")  # Em dash
+    text = text.replace('â€œ', '"')  # Opening quote
+    text = text.replace('â€', '"')   # Closing quote
+    
+    return text.strip()
+
 def extract_text_from_pdf(pdf_path):
     """
     Extract text from a PDF file using PyMuPDF.
